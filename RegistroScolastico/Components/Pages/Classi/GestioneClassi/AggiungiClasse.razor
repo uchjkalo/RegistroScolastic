@@ -1,0 +1,347 @@
+﻿@page "/classi/crea"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Data
+@using RegistroScolastico.Models
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Crea Nuova Classe</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4 text-primary">Crea Nuova Classe</h2>
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 200px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Caricamento...</span>
+            </div>
+            <p class="ms-2">Caricamento dati...</p>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="@Classe" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="card shadow-sm p-4">
+                <div class="row g-3">
+
+                    <!-- Anno -->
+                    <div class="col-md-6">
+                        <label for="anno" class="form-label">Anno</label>
+                        <InputSelect id="anno" class="form-select" @bind-Value="Classe.AnnoId">
+                            <option value="0">Seleziona Anno</option>
+                            @foreach (var anno in Anni)
+                            {
+                                <option value="@anno.Id">@anno.Nome</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => Classe.Anno)" />
+                    </div>
+
+                    <!-- Sezione -->
+                    <div class="col-md-6">
+                        <label for="sezione" class="form-label">Sezione</label>
+                        <InputSelect id="sezione" class="form-select" @bind-Value="Classe.SezioneId">
+                            <option value="0">Seleziona Sezione</option>
+                            @foreach (var sezione in Sezioni)
+                            {
+                                <option value="@sezione.Id">@sezione.Nome</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => Classe.Sezione)" />
+                    </div>
+                    <!-- Corso -->
+                    <div class="col-12">
+                        <label for="corso" class="form-label">Corso</label>
+                        <InputSelect id="corso" class="form-select" @bind-Value="Classe.CorsoId">
+                            <option value="0">Seleziona Corso</option>
+                            @foreach (var corso in Corsi)
+                            {
+                                <option value="@corso.Id">@corso.Nome</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => Classe.CorsoId)" />
+                    </div>
+                    <!-- Anno Formativo -->
+                    <div class="col-md-6">
+                        <label for="annoFormativo" class="form-label">Anno Formativo</label>
+                        <InputSelect id="annoFormativo" class="form-select" @bind-Value="Classe.AnnoFormativoId">
+                            <option value="0">Seleziona Anno Formativo</option>
+                            @foreach (var anno in AnniFormativi)
+                            {
+                                <option value="@anno.Id">@anno.Nome</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => Classe.AnnoFormativoId)" />
+                    </div>
+                    <!-- Collegio Docenti -->
+                    <div class="col-12">
+                        <label for="collegioDocenti" class="form-label">Collegio Docenti (Not Required)</label>
+                        <InputSelect id="collegioDocenti" class="form-select" @bind-Value="Classe.CollegioDocentiId" @bind-Value:after="OnCollegioDocentiChangedAsync">
+                            <option value="">Nessuno</option>
+                            @foreach (var collegio in CollegiDocenti)
+                            {
+                                <option value="@collegio.Id">@collegio.Nome</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => Classe.CollegioDocentiId)" />
+                    </div>
+
+                    <!-- Materie -->
+                    <div class="col-12">
+                        <label class="form-label">Materie insegnate in questa classe</label>
+                        <div class="row">
+                            @if (MaterieDisponibili.Any())
+                            {
+                                @foreach (var materia in MaterieDisponibili)
+                                {
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   id=@($"materia_{materia.MateriaId}_docente_{materia.DocenteId}")
+                                                   @onchange="e => OnMateriaChecked(e, materia.MateriaId, materia.DocenteId)"
+                                                   checked="@MaterieSelezionate.Any(x => x.MateriaId == materia.MateriaId && x.DocenteId == materia.DocenteId)" />
+                                            <label class="form-check-label" for=@($"materia_{materia.MateriaId}_docente_{materia.DocenteId}")>
+                                                @materia.DisplayName
+                                            </label>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="text-muted">Nessuna materia disponibile.</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <!-- Bottoni -->
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+                    <button type="submit" class="btn btn-primary">Crea Classe</button>
+                </div>
+            </div>
+        </EditForm>
+    }
+    <!-- Errori -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="mt-3 alert @(isError ? "alert-danger" : "alert-success")">
+            @statusMessage
+        </div>
+    }
+</div>
+
+<button class="btn btn-warning position-fixed" style="right: 2rem; bottom: 2rem; z-index: 1050;" @onclick="VaiAPersonalizza">
+    Personalizza
+</button>
+
+@code {
+    private Classe Classe { get; set; } = new Classe();
+    private List<AnnoFormativo> AnniFormativi { get; set; } = new();
+    private List<Corso> Corsi { get; set; } = new();
+    private List<CollegioDocenti> CollegiDocenti { get; set; } = new();
+    private List<Anno> Anni { get; set; } = new();
+    private List<Sezione> Sezioni { get; set; } = new();
+    private bool isLoading = true;
+    private string statusMessage = string.Empty;
+    private bool isError;
+    private int MaxAnni { get; set; }
+    private int MaxSezioni { get; set; }
+    private string InizioSezioni { get; set; } = "A";
+
+    // Materie disponibili filtrate e materie selezionate
+    private List<MateriaDisplay> MaterieDisponibili { get; set; } = new();
+    private List<MateriaSelezionata> MaterieSelezionate { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRelatedData();
+        await CaricaMaterieDisponibili();
+        isLoading = false;
+    }
+
+    private async Task LoadRelatedData()
+    {
+        AnniFormativi = await DbContext.AnniFormativi.OrderBy(af => af.Nome).ToListAsync();
+        Corsi = await DbContext.Corsi.OrderBy(c => c.Nome).ToListAsync();
+        CollegiDocenti = await DbContext.CollegiDocenti.OrderBy(cd => cd.Nome).ToListAsync();
+        Anni = await DbContext.Anni.OrderBy(a => a.Nome).ToListAsync();
+        Sezioni = await DbContext.Sezioni.OrderBy(s => s.Nome).ToListAsync();
+
+        // Carica i valori di configurazione dal database
+        var anni = await DbContext.Anni.ToListAsync();
+        var sezioni = await DbContext.Sezioni.ToListAsync();
+        MaxAnni = anni.Count;
+        MaxSezioni = sezioni.Count;
+        if (sezioni.Any())
+        {
+            InizioSezioni = sezioni.First().Nome;
+        }
+    }
+
+    // Carica tutte le combinazioni materia-docente disponibili
+    private async Task CaricaMaterieDisponibili()
+    {
+        MaterieDisponibili.Clear();
+
+        if (Classe.CollegioDocentiId.HasValue && Classe.CollegioDocentiId.Value != 0)
+        {
+            // Ottieni i docenti del collegio selezionato
+            var collegio = await DbContext.CollegiDocenti
+                .Include(cd => cd.Docenti)
+                .FirstOrDefaultAsync(cd => cd.Id == Classe.CollegioDocentiId.Value);
+
+            if (collegio != null)
+            {
+                // Usa UtenteId perché DocenteId in MateriaClasse è UtenteId
+                var docentiIds = collegio.Docenti.Select(d => d.UtenteId).ToList();
+
+                var materieClassi = await DbContext.MaterieClassi
+                    .Include(mc => mc.Materia)
+                    .Include(mc => mc.Docente)
+                        .ThenInclude(d => d.Utente)
+                            .ThenInclude(u => u.Profilo)
+                    .Where(mc => docentiIds.Contains(mc.DocenteId))
+                    .ToListAsync();
+
+                MaterieDisponibili = materieClassi
+                    .Select(mc => new MateriaDisplay
+                        {
+                            MateriaId = mc.MateriaId,
+                            DocenteId = mc.DocenteId,
+                            DisplayName = $"{mc.Materia?.Nome ?? "N/A"} ({mc.Docente?.Utente?.Profilo?.Nome ?? "N/A"} {mc.Docente?.Utente?.Profilo?.Cognome ?? "N/A"})"
+                        })
+                    .OrderBy(md => md.DisplayName)
+                    .ToList();
+            }
+        }
+        else
+        {
+            var materieClassi = await DbContext.MaterieClassi
+                .Include(mc => mc.Materia)
+                .Include(mc => mc.Docente)
+                    .ThenInclude(d => d.Utente)
+                        .ThenInclude(u => u.Profilo)
+                .ToListAsync();
+
+            MaterieDisponibili = materieClassi
+                .Select(mc => new MateriaDisplay
+                    {
+                        MateriaId = mc.MateriaId,
+                        DocenteId = mc.DocenteId,
+                        DisplayName = $"{mc.Materia?.Nome ?? "N/A"} ({mc.Docente?.Utente?.Profilo?.Nome ?? "N/A"} {mc.Docente?.Utente?.Profilo?.Cognome ?? "N/A"})"
+                    })
+                .OrderBy(md => md.DisplayName)
+                .ToList();
+        }
+        StateHasChanged();
+    }
+
+
+    // Gestisce il cambio del collegio docenti
+    private async Task OnCollegioDocentiChangedAsync()
+    {
+        await CaricaMaterieDisponibili();
+
+        MaterieSelezionate.Clear();
+        StateHasChanged();
+    }
+
+    // Gestisce la selezione/deselezione delle materie (materia-docente)
+    private void OnMateriaChecked(ChangeEventArgs e, int materiaId, int docenteId)
+    {
+        var isChecked = e.Value is bool b && b;
+        if (!isChecked && e.Value is string s)
+            isChecked = s == "true" || s == "on";
+
+        var key = new MateriaSelezionata { MateriaId = materiaId, DocenteId = docenteId };
+
+        if (isChecked)
+        {
+            if (!MaterieSelezionate.Any(x => x.MateriaId == materiaId && x.DocenteId == docenteId))
+                MaterieSelezionate.Add(key);
+        }
+        else
+        {
+            var toRemove = MaterieSelezionate.FirstOrDefault(x => x.MateriaId == materiaId && x.DocenteId == docenteId);
+            if (toRemove != null)
+                MaterieSelezionate.Remove(toRemove);
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        statusMessage = string.Empty;
+        isError = false;
+        try
+        {
+            if (Classe.AnnoFormativoId == 0 || Classe.CorsoId == 0)
+            {
+                statusMessage = "Seleziona un Anno Formativo e un Corso validi.";
+                isError = true;
+                return;
+            }
+            DbContext.Classi.Add(Classe);
+            await DbContext.SaveChangesAsync();
+
+            // Salva le materie selezionate per la classe (materia-docente)
+            foreach (var sel in MaterieSelezionate)
+            {
+                DbContext.MaterieClassi.Add(new MateriaClasse
+                    {
+                        ClasseId = Classe.Id,
+                        MateriaId = sel.MateriaId,
+                        DocenteId = sel.DocenteId
+                    });
+            }
+            await DbContext.SaveChangesAsync();
+
+            statusMessage = $"Classe creata con successo!";
+            Navigation.NavigateTo($"/classi/dettagli/{Classe.Id}");
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Si è verificato un errore: {ex.Message}";
+            isError = true;
+            Console.WriteLine(ex.ToString());
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/classi");
+    }
+
+    private void VaiAPersonalizza()
+    {
+        Navigation.NavigateTo("/gestione");
+    }
+
+    // DTO per visualizzazione materia+docente
+    private class MateriaDisplay
+    {
+        public int MateriaId { get; set; }
+        public int DocenteId { get; set; }
+        public string? DisplayName { get; set; }
+    }
+
+    private class MateriaSelezionata
+    {
+        public int MateriaId { get; set; }
+        public int DocenteId { get; set; }
+        public override bool Equals(object? obj)
+        {
+            return obj is MateriaSelezionata other &&
+                   MateriaId == other.MateriaId &&
+                   DocenteId == other.DocenteId;
+        }
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(MateriaId, DocenteId);
+        }
+    }
+}

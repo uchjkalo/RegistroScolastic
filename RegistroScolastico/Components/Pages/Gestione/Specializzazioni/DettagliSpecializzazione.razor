@@ -1,0 +1,77 @@
+﻿@page "/specializzazioni/dettagli/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Dettaglio Specializzazione</PageTitle>
+
+<div class="container mt-4">
+
+    <h2 class="mb-4 text-primary">Dettaglio Specializzazione</h2>
+
+    @if (Specializzazione == null)
+    {
+        <p>Caricamento...</p>
+    }
+    else
+    {
+        <div class="card shadow-sm p-4 mb-4">
+
+            <h3>@Specializzazione.Nome</h3>
+            <p>ID: @Specializzazione.Id</p>
+
+        </div>
+
+        <div class="card shadow-sm p-4">
+
+            <h4>Corsi Associati</h4>
+
+            <table class="table table-hover">
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var corso in CorsiAssociati)
+                    {
+                        <tr>
+                            <td>@corso.Id</td>
+                            <td>@corso.Nome</td>
+                        </tr>
+                    }
+                </tbody>
+
+            </table>
+        </div>
+    }
+
+    <button class="btn btn-secondary mt-3" @onclick="GoBack">Torna Indietro</button>
+</div>
+
+@code {
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private Corso Specializzazione { get; set; } = new Corso();
+    private List<Corso> CorsiAssociati { get; set; } = new List<Corso>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Specializzazione = await DbContext.Corsi
+            .FirstOrDefaultAsync(c => c.Id == Id) ?? new Corso();
+
+        CorsiAssociati = await DbContext.Corsi.Where(c => c.Id == Id).ToListAsync();
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+}

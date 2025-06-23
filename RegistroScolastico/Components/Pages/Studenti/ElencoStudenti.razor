@@ -1,0 +1,384 @@
+﻿@page "/studenti"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Data
+@using RegistroScolastico.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Elenco Studenti</PageTitle>
+
+<div class="container mt-4">
+
+	<div>
+		<div class="d-flex align-items-end justify-content-between">
+			<h2 class="mb-4 text-primary">Elenco Studenti</h2>
+			<button class="btn btn-success" @onclick="CreaStudente">
+				<i class="bi bi-plus-circle"></i> Nuovo Studente
+			</button>
+		</div>
+	</div>
+
+	<div class="row mb-3">
+		<div class="col-md-3">
+			<label>Anno Formativo</label>
+			<InputSelect class="form-select" @bind-Value="filtroAnnoFormativoId">
+				<option value="">Tutti</option>
+				@foreach (var anno in anniFormativi)
+				{
+					<option value="@anno.Id">@anno.Nome</option>
+				}
+			</InputSelect>
+		</div>
+		<div class="col-md-3">
+			<label>Classe (Anno)</label>
+			<InputSelect class="form-select" @bind-Value="filtroClasseId">
+				<option value="">Tutti</option>
+				@foreach (var classe in classiFiltrate)
+				{
+					<option value="@classe.Id">@classe.Anno.Nome</option>
+				}
+			</InputSelect>
+		</div>
+		<div class="col-md-3">
+			<label>Specializzazione</label>
+			<InputSelect class="form-select" @bind-Value="filtroCorsoId">
+				<option value="">Tutte</option>
+				@foreach (var corso in corsiFiltrati)
+				{
+					<option value="@corso.Id">@corso.Nome</option>
+				}
+			</InputSelect>
+		</div>
+		<div class="col-md-3">
+			<label>Sezione</label>
+			<InputSelect class="form-select" @bind-Value="filtroSezioneId">
+				<option value="">Tutte</option>
+				@foreach (var sezione in sezioniFiltrate)
+				{
+					<option value="@sezione.Id">@sezione.Nome</option>
+				}
+			</InputSelect>
+		</div>
+	</div>
+
+	@if (isLoading)
+	{
+		<div class="alert alert-info">Caricamento in corso...</div>
+	}
+	else if (!studentiPaginati.Any())
+	{
+		<div class="alert alert-warning">Nessuno studente trovato per i filtri selezionati.</div>
+	}
+	else
+	{
+		<table class="table table-striped table-bordered align-middle">
+			<thead class="table-light">
+				<tr>
+					<th>Nome</th>
+					<th>Cognome</th>
+					<th>Username</th>
+					<th>Email</th>
+					<th>Classe</th>
+					<th>Sezione</th>
+					<th>Anno Formativo</th>
+					<th>Azioni</th>
+				</tr>
+			</thead>
+			<tbody>
+				@foreach (var studente in studentiPaginati)
+				{
+					<tr>
+						<td>@studente.Utente!.Profilo!.Nome</td>
+						<td>@studente.Utente!.Profilo!.Cognome</td>
+						<td>@studente.Utente!.Username</td>
+						<td>@studente.Utente!.Email</td>
+						<td>@studente.Classe?.Anno?.Nome @studente.Classe?.Sezione?.Nome - @studente.Classe?.Corso?.Nome</td>
+						<td>@studente.Classe?.Sezione?.Nome</td>
+						<td>@studente.Classe?.AnnoFormativo?.Nome</td>
+						<td>
+							<button class="btn btn-sm btn-info me-1" @onclick="() => VaiADettagli(studente.UtenteId)">Dettagli</button>
+							<button class="btn btn-sm btn-warning me-1" @onclick="() => VaiAModifica(studente.UtenteId)">Modifica</button>
+							<button class="btn btn-sm btn-primary me-1" @onclick="() => VaiAValutazioni(studente.UtenteId)">Valutazioni</button>
+							<button class="btn btn-sm btn-secondary me-1" @onclick="() => VaiAPresenze(studente.UtenteId)">Presenze</button>
+							<button class="btn btn-sm btn-danger" @onclick="() => ConfermaElimina(studente.UtenteId)">Elimina</button>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+
+		<div class="d-flex justify-content-between align-items-center">
+			<span>Pagina @paginaCorrente di @pagineTotali</span>
+			<nav>
+				<ul class="pagination mb-0">
+					<li class="page-item @(paginaCorrente == 1 ? "disabled" : "")">
+						<button class="page-link" @onclick="PaginaPrecedente">Precedente</button>
+					</li>
+					@for (int i = 1; i <= pagineTotali; i++)
+					{
+						<li class="page-item @(paginaCorrente == i ? "active" : "")">
+							<button class="page-link" @onclick="() => VaiAPagina(i)">@i</button>
+						</li>
+					}
+					<li class="page-item @(paginaCorrente == pagineTotali ? "disabled" : "")">
+						<button class="page-link" @onclick="PaginaSuccessiva">Successiva</button>
+					</li>
+				</ul>
+			</nav>
+		</div>
+	}
+
+	@if (idStudenteDaEliminare is not null)
+	{
+		<div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.3)">
+			<div class="modal-dialog">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title">Conferma eliminazione</h5>
+						<button type="button" class="btn-close" @onclick="AnnullaElimina"></button>
+					</div>
+					<div class="modal-body">
+						Sei sicuro di voler eliminare questo studente?
+					</div>
+					<div class="modal-footer">
+						<button class="btn btn-secondary" @onclick="AnnullaElimina">Annulla</button>
+						<button class="btn btn-danger" @onclick="EliminaStudente">Elimina</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+</div>
+
+@code {
+
+	private List<Studente> studenti = [];
+	private List<Studente> studentiFiltrati = [];
+	private List<Studente> studentiPaginati = [];
+	private List<AnnoFormativo> anniFormativi = [];
+	private List<Classe> classi = [];
+	private List<Classe> classiFiltrate = [];
+	private List<Sezione> sezioni = [];
+	private List<Sezione> sezioniFiltrate = [];
+	private List<Corso> corsi = [];
+	private List<Corso> corsiFiltrati = [];
+
+	// Property wrapper per i filtri
+	private int? _filtroAnnoFormativoId;
+	private int? filtroAnnoFormativoId
+	{
+		get => _filtroAnnoFormativoId;
+		set
+		{
+			if (_filtroAnnoFormativoId != value)
+			{
+				_filtroAnnoFormativoId = value;
+				// Reset filtri dipendenti
+				filtroClasseId = null;
+				filtroSezioneId = null;
+				filtroCorsoId = null;
+				AggiornaFiltri();
+			}
+		}
+	}
+
+	private int? _filtroClasseId;
+	private int? filtroClasseId
+	{
+		get => _filtroClasseId;
+		set
+		{
+			if (_filtroClasseId != value)
+			{
+				_filtroClasseId = value;
+				AggiornaFiltri();
+			}
+		}
+	}
+
+	private int? _filtroSezioneId;
+	private int? filtroSezioneId
+	{
+		get => _filtroSezioneId;
+		set
+		{
+			if (_filtroSezioneId != value)
+			{
+				_filtroSezioneId = value;
+				AggiornaFiltri();
+			}
+		}
+	}
+
+	private int? _filtroCorsoId;
+	private int? filtroCorsoId
+	{
+		get => _filtroCorsoId;
+		set
+		{
+			if (_filtroCorsoId != value)
+			{
+				_filtroCorsoId = value;
+				AggiornaFiltri();
+			}
+		}
+	}
+
+	private int paginaCorrente = 1;
+	private int pagineTotali = 1;
+	private const int studentiPerPagina = 30;
+	private bool isLoading = true;
+	private int? idStudenteDaEliminare = null;
+
+	protected override async Task OnInitializedAsync()
+	{
+		using var db = await DbFactory.CreateDbContextAsync();
+
+		studenti = await db.Studenti
+			.Include(s => s.Utente)
+				.ThenInclude(u => u.Profilo)
+			.Include(s => s.Classe)
+				.ThenInclude(c => c.Anno)
+			.Include(s => s.Classe)
+				.ThenInclude(c => c.Sezione)
+			.Include(s => s.Classe)
+				.ThenInclude(c => c.Corso)
+			.Include(s => s.Classe)
+				.ThenInclude(c => c.AnnoFormativo)
+			.ToListAsync();
+
+		anniFormativi = await db.AnniFormativi.OrderBy(a => a.Nome).ToListAsync();
+		classi = await db.Classi
+			.Include(c => c.Anno)
+			.Include(c => c.Sezione)
+			.Include(c => c.Corso)
+			.Include(c => c.AnnoFormativo)
+			.ToListAsync();
+		sezioni = await db.Sezioni.OrderBy(s => s.Nome).ToListAsync();
+
+		corsi = await db.Corsi.OrderBy(c => c.Nome).ToListAsync();
+
+		AggiornaFiltri();
+		isLoading = false;
+	}
+
+	private void AggiornaFiltri()
+	{
+		// Filtra classi in base all'anno formativo selezionato
+		classiFiltrate = filtroAnnoFormativoId.HasValue
+			? classi.Where(c => c.AnnoFormativoId == filtroAnnoFormativoId.Value).ToList()
+			: classi.ToList();
+
+		// Filtra corsi in base alle classi filtrate
+		var corsoIds = classiFiltrate.Select(c => c.CorsoId).Distinct().ToList();
+		corsiFiltrati = corsi.Where(c => corsoIds.Contains(c.Id)).ToList();
+
+		// Filtra sezioni in base alle classi filtrate
+		var sezioneIds = classiFiltrate.Select(c => c.SezioneId).Distinct().ToList();
+		sezioniFiltrate = sezioni.Where(s => sezioneIds.Contains(s.Id)).ToList();
+
+		// Filtra studenti
+		studentiFiltrati = studenti.Where(s =>
+			(!filtroAnnoFormativoId.HasValue || s.Classe?.AnnoFormativoId == filtroAnnoFormativoId.Value) &&
+			(!filtroClasseId.HasValue || s.ClasseId == filtroClasseId.Value) &&
+			(!filtroSezioneId.HasValue || s.Classe?.SezioneId == filtroSezioneId.Value) &&
+			(!filtroCorsoId.HasValue || s.Classe?.CorsoId == filtroCorsoId.Value)
+		).ToList();
+
+		paginaCorrente = 1;
+		AggiornaPaginazione();
+	}
+
+	private void AggiornaPaginazione()
+	{
+		pagineTotali = Math.Max(1, (int)Math.Ceiling(studentiFiltrati.Count / (double)studentiPerPagina));
+		studentiPaginati = studentiFiltrati
+			.Skip((paginaCorrente - 1) * studentiPerPagina)
+			.Take(studentiPerPagina)
+			.ToList();
+		StateHasChanged();
+	}
+
+	private void VaiAPagina(int pagina)
+	{
+		if (pagina < 1 || pagina > pagineTotali) return;
+		paginaCorrente = pagina;
+		AggiornaPaginazione();
+	}
+
+	private void PaginaPrecedente()
+	{
+		if (paginaCorrente > 1)
+		{
+			paginaCorrente--;
+			AggiornaPaginazione();
+		}
+	}
+
+	private void PaginaSuccessiva()
+	{
+		if (paginaCorrente < pagineTotali)
+		{
+			paginaCorrente++;
+			AggiornaPaginazione();
+		}
+	}
+
+	private void VaiADettagli(int studenteId)
+	{
+		Navigation.NavigateTo($"/studenti/dettagli/{studenteId}");
+	}
+
+	private void VaiAModifica(int studenteId)
+	{
+		Navigation.NavigateTo($"/studenti/modifica/{studenteId}");
+	}
+
+	private void VaiAValutazioni(int studenteId)
+	{
+		Navigation.NavigateTo($"/studenti/valutazioni/{studenteId}");
+	}
+
+	private void VaiAPresenze(int studenteId)
+	{
+		Navigation.NavigateTo($"/studenti/presenze/{studenteId}");
+	}
+
+	private void ConfermaElimina(int studenteId)
+	{
+		idStudenteDaEliminare = studenteId;
+	}
+
+	private void AnnullaElimina()
+	{
+		idStudenteDaEliminare = null;
+	}
+
+	private async Task EliminaStudente()
+	{
+		if (idStudenteDaEliminare is null)
+			return;
+
+		using var db = await DbFactory.CreateDbContextAsync();
+		var studente = await db.Studenti
+			.Include(s => s.Utente)
+			.FirstOrDefaultAsync(s => s.UtenteId == idStudenteDaEliminare.Value);
+
+		if (studente is not null)
+		{
+			db.Utenti.Remove(studente.Utente);
+			db.Studenti.Remove(studente);
+			await db.SaveChangesAsync();
+		}
+
+        // Aggiorna elenco dopo eliminazione
+		studenti.RemoveAll(s => s.UtenteId == idStudenteDaEliminare.Value);
+		AggiornaFiltri();
+		idStudenteDaEliminare = null;
+	}
+	private void CreaStudente(MouseEventArgs e)
+	{
+		Navigation.NavigateTo("/studenti/crea");
+	}
+
+}

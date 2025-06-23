@@ -1,0 +1,121 @@
+﻿@page "/docenti/dettagli/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Dettaglio Docente</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4 text-primary">Dettaglio Docente</h2>
+
+    @if (Docente == null)
+    {
+        <p>Caricamento...</p>
+    }
+    else
+    {
+        <div class="card shadow-sm p-4 mb-4">
+
+            <h3>
+                @(Docente.Utente?.Profilo.Cognome?.ToUpperInvariant() ?? "-")
+                @(Docente.Utente?.Profilo.Nome ?? "-")
+            </h3>
+
+            <p><b>Email:</b> @(Docente.Utente?.Email ?? "-")</p>
+
+            <p><b>Codice Fiscale:</b> @(Docente.Utente?.Profilo?.CodiceFiscale ?? "-")</p>
+
+            <p><b>Data di Nascita:</b> @(Docente.Utente?.Profilo?.DataNascita != default ? Docente.Utente?.Profilo?.DataNascita.ToString("dd/MM/yyyy") : "-")</p>
+
+            <p>
+                <b>Materie:</b>
+                @{
+                    var materie = Docente.MaterieInsegnate?
+                    .Where(mc => mc.Materia != null)
+                    .Select(mc => mc.Materia.Nome)
+                    .Distinct()
+                    .ToList();
+                }
+                @(materie != null && materie.Any() ? string.Join(", ", materie) : "-")
+            </p>
+
+        </div>
+
+        <div class="card shadow-sm p-4 mb-4">
+
+            <h4>Collegi Docenti Associati</h4>
+
+            @if (Docente.CollegiDocenti != null && Docente.CollegiDocenti.Any())
+            {
+                <ul>
+                    @foreach (var collegio in Docente.CollegiDocenti)
+                    {
+                        <li>@(collegio?.Nome ?? "-")</li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p>Nessun collegio associato.</p>
+            }
+
+        </div>
+
+        <div class="card shadow-sm p-4">
+
+            <h4>Materie Insegnate</h4>
+
+            @if (Docente.MaterieInsegnate != null && Docente.MaterieInsegnate.Any())
+            {
+                <ul>
+                    @foreach (var materiaClasse in Docente.MaterieInsegnate)
+                    {
+                        <li>
+                            @(materiaClasse?.Materia?.Nome ?? "-")
+                            @if (materiaClasse?.Classe != null)
+                            {
+                                <span class="text-muted">(@materiaClasse.Classe.Anno@materiaClasse.Classe.Sezione @materiaClasse.Classe.Corso.Nome)</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p>Nessuna materia assegnata.</p>
+            }
+
+        </div>
+
+        <button class="btn btn-secondary mt-3" @onclick="GoBack">Torna Indietro</button>
+
+    }
+</div>
+
+@code {
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private Docente? Docente { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Docente = await DbContext.Docenti
+            .Include(d => d.Utente)
+                .ThenInclude(u => u.Profilo)
+            .Include(d => d.CollegiDocenti)
+            .Include(d => d.MaterieInsegnate)
+                .ThenInclude(mc => mc.Materia)
+            .Include(d => d.MaterieInsegnate)
+                .ThenInclude(mc => mc.Classe)
+            .FirstOrDefaultAsync(d => d.UtenteId == Id);
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+}

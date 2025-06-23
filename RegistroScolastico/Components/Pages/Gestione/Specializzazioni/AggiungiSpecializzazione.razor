@@ -1,0 +1,57 @@
+﻿@page "/specializzazioni/crea"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Aggiungi Specializzazione</PageTitle>
+
+<div class="container mt-4">
+
+    <h2 class="mb-4 text-primary">Aggiungi Specializzazione</h2>
+
+    <EditForm Model="@Specializzazione" OnValidSubmit="HandleValidSubmit">
+
+        <DataAnnotationsValidator />
+
+        <ValidationSummary />
+
+        <div class="card shadow-sm p-4">
+
+            <div class="mb-3">
+
+                <label for="nome" class="form-label">Nome</label>
+                <InputText id="nome" class="form-control" @bind-Value="Specializzazione.Nome" />
+
+                <ValidationMessage For="@(() => Specializzazione.Nome)" />
+
+            </div>
+
+            <div class="d-flex justify-content-end mt-4">
+                <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+                <button type="submit" class="btn btn-primary">Salva</button>
+            </div>
+
+        </div>
+    </EditForm>
+
+</div>
+
+
+@code {
+
+    private Corso Specializzazione { get; set; } = new Corso();
+
+    private async Task HandleValidSubmit()
+    {
+        DbContext.Corsi.Add(Specializzazione);
+        await DbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo("/gestione");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+}

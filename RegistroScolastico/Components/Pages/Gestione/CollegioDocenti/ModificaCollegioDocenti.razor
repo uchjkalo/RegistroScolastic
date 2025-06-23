@@ -1,0 +1,125 @@
+﻿@page "/collegidocente/modifica/{CollegioId:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Data
+@using RegistroScolastico.Models
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<h3>Modifica Collegio Docenti</h3>
+
+@if (collegio == null)
+{
+    <p>Caricamento...</p>
+}
+else
+{
+    <div class="mb-3">
+        <button class="btn btn-danger" @onclick="EliminaCollegio">Elimina Collegio</button>
+    </div>
+
+    <EditForm Model="collegio" OnValidSubmit="SalvaModifiche">
+        <div class="mb-3">
+            <label>Docenti nel collegio:</label>
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Cognome</th>
+                        <th>Email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var docente in tuttiIDocenti)
+                    {
+                        var utente = docente.Utente;
+                        var profilo = utente?.Profilo;
+                        <tr>
+                            <td>
+                                <input type="checkbox"
+                                       checked="@docentiSelezionati.Contains(docente.UtenteId)"
+                                       @onchange="e => AggiornaSelezione(docente.UtenteId, e)" />
+                            </td>
+                            <td>@utente?.Id</td>
+                            <td>@(profilo?.Nome ?? utente?.Profilo.Nome ?? "N/A")</td>
+                            <td>@(profilo?.Cognome ?? utente?.Profilo.Cognome ?? "N/A")</td>
+                            <td>@(utente?.Email ?? profilo?.Utente.Email ?? "N/A")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-primary" type="submit">Salva</button>
+    </EditForm>
+    @if (!string.IsNullOrEmpty(feedbackMessage))
+    {
+        <div class="alert alert-info mt-3">@feedbackMessage</div>
+    }
+    <button class="btn btn-secondary mt-3" @onclick="GoBack">Torna Indietro</button>
+}
+
+@code {
+    [Parameter] public int CollegioId { get; set; }
+
+    private CollegioDocenti? collegio;
+    private List<Docente> tuttiIDocenti = new();
+    private HashSet<int> docentiSelezionati = new();
+    private string feedbackMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        collegio = await DbContext.CollegiDocenti
+            .Include(c => c.Docenti)
+                .ThenInclude(d => d.Utente)
+                    .ThenInclude(u => u.Profilo)
+            .FirstOrDefaultAsync(c => c.Id == CollegioId);
+
+        tuttiIDocenti = await DbContext.Docenti
+            .Include(d => d.Utente)
+                .ThenInclude(u => u.Profilo)
+            .ToListAsync();
+
+        if (collegio != null)
+        {
+            docentiSelezionati = collegio.Docenti.Select(d => d.UtenteId).ToHashSet();
+        }
+    }
+
+    private async Task EliminaCollegio()
+    {
+        if (collegio != null)
+        {
+            DbContext.CollegiDocenti.Remove(collegio);
+            await DbContext.SaveChangesAsync();
+            NavigationManager.NavigateTo("/gestione");
+        }
+    }
+
+    private void AggiornaSelezione(int docenteId, ChangeEventArgs e)
+    {
+        bool isChecked = e.Value is bool b && b;
+        if (isChecked)
+            docentiSelezionati.Add(docenteId);
+        else
+            docentiSelezionati.Remove(docenteId);
+    }
+
+    private async Task SalvaModifiche()
+    {
+        if (collegio != null)
+        {
+            collegio.Docenti = tuttiIDocenti
+                .Where(d => docentiSelezionati.Contains(d.UtenteId))
+                .ToList();
+
+            await DbContext.SaveChangesAsync();
+            feedbackMessage = "Collegio aggiornato con successo!";
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+}

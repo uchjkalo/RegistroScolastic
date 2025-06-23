@@ -1,0 +1,82 @@
+﻿@page "/collegidocente/dettagli/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Dettaglio Collegio Docente</PageTitle>
+
+<div class="container mt-4">
+
+    <h2 class="mb-4 text-primary">Dettaglio Collegio Docente</h2>
+
+    @if (CollegioDocente == null)
+    {
+        <p>Caricamento...</p>
+    }
+    else
+    {
+        <div class="card shadow-sm p-4 mb-4">
+            <h3>@CollegioDocente.Nome</h3>
+            <p>ID: @CollegioDocente.Id</p>
+        </div>
+
+        <div class="card shadow-sm p-4">
+            <h4>Partecipanti (Docenti Associati)</h4>
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Cognome</th>
+                        <th>Email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var docente in DocentiAssociati)
+                    {
+                        <tr>
+                            <td>@docente.Id</td>
+                            <td>@(docente.Profilo?.Nome ?? "N/A")</td>
+                            <td>@(docente.Profilo?.Cognome ?? "N/A")</td>
+                            <td>@(docente.Email ?? "N/A")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <button class="btn btn-secondary mt-3" @onclick="GoBack">Torna Indietro</button>
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private CollegioDocenti? CollegioDocente { get; set; }
+    private List<Utente> DocentiAssociati { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        CollegioDocente = await DbContext.CollegiDocenti
+            .Include(cd => cd.Docenti)
+                .ThenInclude(d => d.Utente)
+                    .ThenInclude(u => u.Profilo)
+            .FirstOrDefaultAsync(cd => cd.Id == Id);
+
+        if (CollegioDocente?.Docenti != null)
+        {
+            DocentiAssociati = CollegioDocente.Docenti
+                .Where(d => d.Utente != null)
+                .Select(d => d.Utente)
+                .ToList();
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+}

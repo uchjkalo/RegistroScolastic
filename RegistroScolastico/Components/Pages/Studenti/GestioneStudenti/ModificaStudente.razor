@@ -1,0 +1,237 @@
+﻿@page "/studenti/modifica/{StudenteId:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Data
+@using RegistroScolastico.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Modifica Studente</PageTitle>
+
+<div class="container mt-4">
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Caricamento in corso...</div>
+    }
+    else if (studente is null)
+    {
+        <div class="alert alert-danger">Studente non trovato.</div>
+    }
+    else
+    {
+        <EditForm Model="@studente" OnValidSubmit="SalvaModificheAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="card shadow-sm p-4">
+                <h2 class="mb-4 text-primary">Modifica Studente</h2>
+
+                <fieldset>
+                    <legend>Dati Utente</legend>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label>Username</label>
+                            <InputText class="form-control" @bind-Value="studente.Utente!.Username" />
+                            <ValidationMessage For="@(() => studente.Utente!.Username)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label>Email</label>
+                            <InputText class="form-control" @bind-Value="studente.Utente!.Email" />
+                            <ValidationMessage For="@(() => studente.Utente!.Email)" />
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Dati Profilo</legend>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <InputText class="form-control" @bind-Value="studente.Utente!.Profilo!.Nome" />
+                            <ValidationMessage For="@(() => studente.Utente!.Profilo!.Nome)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label>Cognome</label>
+                            <InputText class="form-control" @bind-Value="studente.Utente!.Profilo!.Cognome" />
+                            <ValidationMessage For="@(() => studente.Utente!.Profilo!.Cognome)" />
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label>Codice Fiscale</label>
+                            <InputText class="form-control" @bind-Value="studente.Utente!.Profilo!.CodiceFiscale" />
+                            <ValidationMessage For="@(() => studente.Utente!.Profilo!.CodiceFiscale)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label>Data di Nascita</label>
+                            <InputDate class="form-control" @bind-Value="studente.Utente!.Profilo!.DataNascita" />
+                            <ValidationMessage For="@(() => studente.Utente!.Profilo!.DataNascita)" />
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label>Indirizzo</label>
+                            <InputText class="form-control" @bind-Value="studente.Utente!.Profilo!.Indirizzo" />
+                            <ValidationMessage For="@(() => studente.Utente!.Profilo!.Indirizzo)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label>Telefono</label>
+                            <InputText class="form-control" @bind-Value="studente.Utente!.Profilo!.Telefono" />
+                            <ValidationMessage For="@(() => studente.Utente!.Profilo!.Telefono)" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label>Info Aggiuntive</label>
+                        <InputTextArea class="form-control" @bind-Value="studente.Utente!.Profilo!.InfoAggiuntive" />
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Classe di Appartenenza</legend>
+                    <div class="mb-3">
+                        <label>Classe</label>
+                        <InputSelect class="form-control" @bind-Value="studente.ClasseId">
+                            <option value="">-- Seleziona Classe --</option>
+                            @foreach (var classe in classi)
+                            {
+                                <option value="@classe.Id">@classe.Anno.Nome @classe.Sezione.Nome - @classe.Corso.Nome (@classe.AnnoFormativo.Nome)</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => studente.ClasseId)" />
+                    </div>
+                </fieldset>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+                    <button type="submit" class="btn btn-primary" disabled="@isSaving">Salva Modifiche</button>
+                </div>
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success mt-3">@successMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mt-3">@errorMessage</div>
+                }
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int StudenteId { get; set; }
+
+    private Studente? studente;
+    private List<Classe> classi = [];
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string? successMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        classi = await db.Classi
+            .Include(c => c.Anno)
+            .Include(c => c.Sezione)
+            .Include(c => c.Corso)
+            .Include(c => c.AnnoFormativo)
+            .ToListAsync();
+
+        studente = await db.Studenti
+            .Include(s => s.Utente)
+                .ThenInclude(u => u.Profilo)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.Anno)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.Sezione)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.Corso)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.AnnoFormativo)
+            .FirstOrDefaultAsync(s => s.UtenteId == StudenteId);
+
+        isLoading = false;
+    }
+
+    private async Task SalvaModificheAsync()
+    {
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            if (studente is null || studente.Utente is null || studente.Utente.Profilo is null)
+            {
+                errorMessage = "Dati studente non validi.";
+                isSaving = false;
+                return;
+            }
+
+            using var db = await DbFactory.CreateDbContextAsync();
+
+            // Verifica unicità username/email (escludendo l'attuale studente)
+            if (await db.Utenti.AnyAsync(u => u.Username == studente.Utente.Username && u.Id != studente.Utente.Id))
+            {
+                errorMessage = "Username già esistente.";
+                isSaving = false;
+                return;
+            }
+            if (await db.Utenti.AnyAsync(u => u.Email == studente.Utente.Email && u.Id != studente.Utente.Id))
+            {
+                errorMessage = "Email già esistente.";
+                isSaving = false;
+                return;
+            }
+
+            // Aggiorna i dati
+            var utenteDb = await db.Utenti.Include(u => u.Profilo).FirstOrDefaultAsync(u => u.Id == studente.Utente.Id);
+            if (utenteDb is null || utenteDb.Profilo is null)
+            {
+                errorMessage = "Utente non trovato.";
+                isSaving = false;
+                return;
+            }
+
+            utenteDb.Username = studente.Utente.Username;
+            utenteDb.Email = studente.Utente.Email;
+            utenteDb.Ruolo = RuoloUtente.Studente;
+            utenteDb.Attivo = studente.Utente.Attivo;
+
+            // Profilo
+            utenteDb.Profilo.Nome = studente.Utente.Profilo.Nome;
+            utenteDb.Profilo.Cognome = studente.Utente.Profilo.Cognome;
+            utenteDb.Profilo.CodiceFiscale = studente.Utente.Profilo.CodiceFiscale;
+            utenteDb.Profilo.DataNascita = studente.Utente.Profilo.DataNascita;
+            utenteDb.Profilo.Indirizzo = studente.Utente.Profilo.Indirizzo;
+            utenteDb.Profilo.Telefono = studente.Utente.Profilo.Telefono;
+            utenteDb.Profilo.InfoAggiuntive = studente.Utente.Profilo.InfoAggiuntive;
+            utenteDb.Profilo.DataModifica = DateTime.UtcNow;
+
+            // Classe
+            var studenteDb = await db.Studenti.FirstOrDefaultAsync(s => s.UtenteId == studente.Utente.Id);
+            if (studenteDb is not null)
+            {
+                studenteDb.ClasseId = studente.ClasseId;
+            }
+
+            await db.SaveChangesAsync();
+
+            successMessage = "Modifiche salvate con successo!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Errore durante il salvataggio: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/studenti");
+    }
+}

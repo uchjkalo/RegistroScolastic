@@ -1,0 +1,115 @@
+﻿@page "/materie/dettagli/{MateriaId:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Dettagli Materia</PageTitle>
+
+@if (isLoading)
+{
+    <div class="text-center mt-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div>Caricamento...</div>
+    </div>
+}
+else if (materia == null)
+{
+    <div class="alert alert-danger mt-4">Materia non trovata.</div>
+}
+else
+{
+    <div class="container mt-4">
+        <h2 class="mb-3 text-primary">@materia.Nome</h2>
+        <dl class="row">
+            <dt class="col-sm-3">Data creazione</dt>
+            <dd class="col-sm-9">@materia.DataCreazione?.ToString("dd/MM/yyyy")</dd>
+            <dt class="col-sm-3">Ultima modifica</dt>
+            <dd class="col-sm-9">@materia.DataModifica?.ToString("dd/MM/yyyy")</dd>
+        </dl>
+
+        <h5 class="mt-4">Moduli associati</h5>
+        @if (moduli.Any())
+        {
+            <ul class="list-group mb-3">
+                @foreach (var modulo in moduli)
+                {
+                    <li class="list-group-item">@modulo.Nome</li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="text-muted mb-3">Nessun modulo associato.</div>
+        }
+
+        <h5>Docenti che insegnano questa materia</h5>
+        @if (docenti.Any())
+        {
+            <ul class="list-group mb-3">
+                @foreach (var docente in docenti)
+                {
+                    <li class="list-group-item">
+                        @docente.Utente?.Profilo?.Cognome @docente.Utente?.Profilo?.Nome
+                        <!-- Qui puoi aggiungere altre info se vuoi -->
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="text-muted mb-3">Nessun docente associato.</div>
+        }
+
+        <button class="btn btn-secondary" @onclick="GoBack">Torna alla gestione materie</button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int MateriaId { get; set; }
+
+    private Materia? materia;
+    private List<Modulo> moduli = new();
+    private List<Docente> docenti = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+
+        materia = await DbContext.Materie
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == MateriaId);
+
+        if (materia != null)
+        {
+            // Carica moduli associati
+            moduli = await DbContext.ModuliMaterie
+                .Where(mm => mm.MateriaId == MateriaId)
+                .Include(mm => mm.Modulo)
+                .Select(mm => mm.Modulo)
+                .AsNoTracking()
+                .ToListAsync();
+
+            // Carica docenti associati (tramite MateriaClasse)
+            docenti = await DbContext.MaterieClassi
+                .Where(mc => mc.MateriaId == MateriaId)
+                .Include(mc => mc.Docente)
+                    .ThenInclude(d => d.Utente)
+                        .ThenInclude(u => u.Profilo)
+                .Select(mc => mc.Docente)
+                .Distinct()
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        isLoading = false;
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/gestione");
+    }
+}

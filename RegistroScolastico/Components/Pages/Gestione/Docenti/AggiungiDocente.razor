@@ -1,0 +1,178 @@
+﻿@page "/docenti/crea"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Aggiungi Docente</PageTitle>
+
+<div class="container mt-4">
+
+    <h2 class="mb-4 text-primary">Aggiungi Docente</h2>
+
+    <EditForm Model="@DocenteModel" OnValidSubmit="HandleValidSubmit">
+
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card shadow-sm p-4">
+
+            <h5 class="mb-3">Dati Utente</h5>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Username</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Username" />
+                    <ValidationMessage For="@(() => DocenteModel.Utente.Username)" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Email</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Email" />
+                    <ValidationMessage For="@(() => DocenteModel.Utente.Email)" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Password</label>
+                    <InputText class="form-control" @bind-Value="Password" type="password" />
+                    <ValidationMessage For="@(() => Password)" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Ruolo</label>
+                    <InputSelect class="form-select" @bind-Value="DocenteModel.Utente.Ruolo">
+                        <option value="@RuoloUtente.Docente">Docente</option>
+                    </InputSelect>
+                </div>
+            </div>
+
+            <h5 class="mb-3 mt-4">Profilo</h5>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Nome</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Nome" />
+                    <ValidationMessage For="@(() => DocenteModel.Utente.Profilo.Nome)" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Cognome</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Cognome" />
+                    <ValidationMessage For="@(() => DocenteModel.Utente.Profilo.Cognome)" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Codice Fiscale</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.CodiceFiscale" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Data di Nascita</label>
+                    <InputDate class="form-control" @bind-Value="DocenteModel.Utente.Profilo.DataNascita" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Indirizzo</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Indirizzo" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Telefono</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Telefono" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Info Aggiuntive</label>
+                <InputTextArea class="form-control" @bind-Value="DocenteModel.Utente.Profilo.InfoAggiuntive" />
+            </div>
+
+            <h5 class="mb-3 mt-4">Materie Insegnate</h5>
+            <div class="mb-3">
+                <div class="row">
+                    @foreach (var materia in Materie)
+                    {
+                        <div class="col-md-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="materia_@materia.Id"
+                                       @bind="materieSelections[materia.Id]" />
+                                <label class="form-check-label" for="materia_@materia.Id">
+                                    @materia.Nome
+                                </label>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <small class="text-muted">Puoi lasciare vuoto e assegnare le materie più tardi.</small>
+            </div>
+
+            <div class="d-flex justify-content-end mt-4">
+                <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+                <button type="submit" class="btn btn-primary">Salva</button>
+            </div>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private Docente DocenteModel { get; set; } = new Docente
+        {
+            Utente = new Utente
+            {
+                Profilo = new Profilo(),
+                Username = string.Empty,
+                Ruolo = RuoloUtente.Docente
+            }
+        };
+    private string Password { get; set; } = string.Empty;
+    private List<Materia> Materie { get; set; } = new();
+    private Dictionary<int, bool> materieSelections = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Materie = await DbContext.Materie.OrderBy(m => m.Nome).ToListAsync();
+        foreach (var materia in Materie)
+        {
+            materieSelections[materia.Id] = false;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        // Hash della password (da sostituire con un vero hash in produzione)
+        DocenteModel.Utente.PasswordHash = Password;
+        DocenteModel.Utente.Ruolo = RuoloUtente.Docente;
+
+        // Aggiungi l'utente e il profilo
+        DbContext.Utenti.Add(DocenteModel.Utente);
+        await DbContext.SaveChangesAsync();
+
+        // Associa l'UtenteId al Docente
+        DocenteModel.UtenteId = DocenteModel.Utente.Id;
+
+        // Aggiungi il docente
+        DbContext.Docenti.Add(DocenteModel);
+        await DbContext.SaveChangesAsync();
+
+        // Associa le materie selezionate tramite MateriaClasse (senza classe specifica)
+        var materieAssociate = materieSelections
+            .Where(kv => kv.Value)
+            .Select(kv => new MateriaClasse
+                {
+                    MateriaId = kv.Key,
+                    DocenteId = DocenteModel.UtenteId,
+                    Peso = 1 // valore di default, puoi modificarlo
+                }).ToList();
+
+        if (materieAssociate.Any())
+        {
+            DbContext.MaterieClassi.AddRange(materieAssociate);
+            await DbContext.SaveChangesAsync();
+        }
+
+        NavigationManager.NavigateTo("/gestione");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+}

@@ -1,0 +1,472 @@
+﻿@page "/gestione"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject NavigationManager NavigationManager
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Gestione</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4 text-primary">Gestione Dati</h2>
+
+    <!-- Configurazione -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Configurazione</h3>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="maxAnni" class="form-label">Numero Massimo di Anni</label>
+                <input type="range" class="form-range" min="1" max="20" id="maxAnni" @bind="MaxAnni" @bind:event="oninput">
+                <div>Valore: @MaxAnni</div>
+            </div>
+            <div class="mb-3">
+                <label for="maxSezioni" class="form-label">Numero Massimo di Sezioni</label>
+                <input type="range" class="form-range" min="1" max="20" id="maxSezioni" @bind="MaxSezioni" @bind:event="oninput">
+                <div>Valore: @MaxSezioni</div>
+            </div>
+            <EditForm Model="this">
+                <div class="mb-3">
+                    <label for="inizioSezioni" class="form-label">Carattere Iniziale Sezioni</label>
+                    <input type="text" class="form-control" id="inizioSezioni" @bind="InizioSezioni" maxlength="1">
+                    <ValidationMessage For="@(() => InizioSezioni)" />
+                </div>
+                <button class="btn btn-primary" type="submit" @onclick="SalvaConfigurazione">Salva Configurazione</button>
+            </EditForm>
+            @if (!string.IsNullOrEmpty(feedbackMessage))
+            {
+                <div class="alert alert-info mt-3">
+                    @feedbackMessage
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Tabella Anni Formativi -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Anni Formativi</h3>
+            <button class="btn btn-light" @onclick="CreaAnnoFormativo">
+                <i class="bi bi-plus-circle"></i> Aggiungi
+            </button>
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var anno in AnniFormativi)
+                    {
+                        <tr @onclick="() => NavigaADettaglioAnnoFormativo(anno.Id)">
+                            <td>@anno.Id</td>
+                            <td>@anno.Nome</td>
+                            <td>
+                                <button class="btn btn-info btn-sm me-2" @onclick="() => NavigaADettaglioAnnoFormativo(anno.Id)">Dettagli</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tabella Specializzazioni -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Specializzazioni</h3>
+            <button class="btn btn-light" @onclick="CreaSpecializzazione">
+                <i class="bi bi-plus-circle"></i> Aggiungi
+            </button>
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var specializzazione in Specializzazioni)
+                    {
+                        <tr>
+                            <td>@specializzazione.Id</td>
+                            <td>@specializzazione.Nome</td>
+                            <td>
+                                <button class="btn btn-info btn-sm me-2" @onclick="() => NavigaADettaglioSpecializzazione(specializzazione.Id)">Dettagli</button>
+                                <button class="btn btn-warning btn-sm me-2" @onclick="() => NavigaAModificaSpecializzazione(specializzazione.Id)">Modifica</button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => EliminaSpecializzazione(specializzazione.Id)">Elimina</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <br />
+
+    <!-- Tabella Materie -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Materie</h3>
+            <button class="btn btn-light" @onclick="CreaMateria">
+                <i class="bi bi-plus-circle"></i> Aggiungi
+            </button>
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Moduli associati</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var materia in Materie)
+                    {
+                        <tr>
+                            <td>@materia.Id</td>
+                            <td>@materia.Nome</td>
+                            <td>
+                                @if (materia.Moduli != null && materia.Moduli.Any())
+                                {
+                                    <ul class="mb-0">
+                                        @foreach (var moduloMateria in materia.Moduli)
+                                        {
+                                            <li>@moduloMateria.Modulo?.Nome</li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Nessun modulo</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-info btn-sm me-2" @onclick="() => NavigaADettaglioMateria(materia.Id)">Dettagli</button>
+                                <button class="btn btn-warning btn-sm me-2" @onclick="() => NavigaAModificaMateria(materia.Id)">Modifica</button>
+                                <button class="btn btn-danger btn-sm" @onclick="async () => await EliminaMateria(materia.Id)">Elimina</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tabella Collegi Docente -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Collegi Docente</h3>
+            <button class="btn btn-light" @onclick="CreaCollegioDocente">
+                <i class="bi bi-plus-circle"></i> Aggiungi
+            </button>
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var collegio in CollegiDocenti)
+                    {
+                        <tr>
+                            <td>@collegio.Id</td>
+                            <td>@collegio.Nome</td>
+                            <td>
+                                <button class="btn btn-info btn-sm me-2" @onclick="() => NavigaADettaglioCollegioDocente(collegio.Id)">Dettagli</button>
+                                <button class="btn btn-warning btn-sm" @onclick="() => NavigaAModificaCollegio(collegio.Id)">Modifica</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tabella Docenti -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Docenti</h3>
+            <button class="btn btn-light" @onclick="CreaDocente">
+                <i class="bi bi-plus-circle"></i> Aggiungi
+            </button>
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Cognome</th>
+                        <th>Nome</th>
+                        <th>Email</th>
+                        <th>Materie Insegnate</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var docente in Docenti)
+                    {
+                        <tr>
+                            <td>@docente.UtenteId</td>
+                            <td>@docente.Utente?.Profilo?.Cognome</td>
+                            <td>@docente.Utente?.Profilo?.Nome</td>
+                            <td>@docente.Utente?.Email</td>
+                            <td>
+                                @if (docente.MaterieInsegnate != null && docente.MaterieInsegnate.Any())
+                                {
+                                    <ul class="mb-0">
+                                        @foreach (var materiaClasse in docente.MaterieInsegnate)
+                                        {
+                                            <li>@materiaClasse.Materia?.Nome</li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Nessuna materia</span>
+                                }
+                            </td>
+
+                            <td>
+                                <button class="btn btn-info btn-sm" @onclick="() => NavigaADettaglioDocente(docente.UtenteId)">Dettagli</button>
+                                <button class="btn btn-warning btn-sm" @onclick="() => NavigaAModificaDocente(docente.UtenteId)">Modifica</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+</div>
+
+
+
+@code {
+
+    private List<Docente> Docenti { get; set; } = new List<Docente>();
+    private List<AnnoFormativo> AnniFormativi { get; set; } = new List<AnnoFormativo>();
+    private List<Models.CollegioDocenti> CollegiDocenti { get; set; } = new List<Models.CollegioDocenti>();
+    private List<Corso> Specializzazioni { get; set; } = new List<Corso>();
+    private List<Sezione> Sezioni { get; set; } = new List<Sezione>();
+    private List<Anno> Anni { get; set; } = new List<Anno>();
+    private List<Materia> Materie { get; set; } = new List<Materia>();
+    private string feedbackMessage = string.Empty;
+
+    private int MaxAnni { get; set; }
+    private int MaxSezioni { get; set; }
+    private string InizioSezioni { get; set; } = "A";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Docenti = await DbContext.Docenti
+            .Include(d => d.Utente)
+                .ThenInclude(u => u.Profilo)
+            .Include(d => d.MaterieInsegnate)
+                .ThenInclude(mc => mc.Materia)
+            .ToListAsync();
+
+
+        AnniFormativi = await DbContext.AnniFormativi.ToListAsync();
+        CollegiDocenti = await DbContext.CollegiDocenti.ToListAsync();
+        Specializzazioni = await DbContext.Corsi.ToListAsync();
+        Sezioni = await DbContext.Sezioni.ToListAsync();
+        Anni = await DbContext.Anni.ToListAsync();
+
+        Materie = await DbContext.Materie
+            .Include(m => m.Moduli)
+                .ThenInclude(mm => mm.Modulo)
+            .ToListAsync();
+    }
+
+    private async Task SalvaConfigurazione()
+    {
+        try
+        {
+            // Aggiorna Anni
+            var anniEsistenti = await DbContext.Anni.OrderBy(a => a.Nome).ToListAsync();
+            var anniDesiderati = Enumerable.Range(1, MaxAnni)
+                .Select(i => $"{i}°")
+                .ToList();
+
+            // Aggiungi anni mancanti
+            foreach (var nomeAnno in anniDesiderati.Except(anniEsistenti.Select(a => a.Nome)))
+            {
+                DbContext.Anni.Add(new Anno { Nome = nomeAnno });
+            }
+
+            // Rimuovi anni in eccesso
+            foreach (var anno in anniEsistenti.Where(a => !anniDesiderati.Contains(a.Nome)))
+            {
+                DbContext.Anni.Remove(anno);
+            }
+
+            // Aggiorna Sezioni
+            char inizio = string.IsNullOrEmpty(InizioSezioni) ? 'A' : InizioSezioni[0];
+            var sezioniDesiderate = Enumerable.Range(0, MaxSezioni)
+                .Select(i => ((char)(inizio + i)).ToString())
+                .ToList();
+            var sezioniEsistenti = await DbContext.Sezioni.OrderBy(s => s.Nome).ToListAsync();
+
+            // Aggiungi sezioni mancanti
+            foreach (var nomeSezione in sezioniDesiderate.Except(sezioniEsistenti.Select(s => s.Nome)))
+            {
+                DbContext.Sezioni.Add(new Sezione { Nome = nomeSezione });
+            }
+
+            // Rimuovi sezioni in eccesso
+            foreach (var sezione in sezioniEsistenti.Where(s => !sezioniDesiderate.Contains(s.Nome)))
+            {
+                DbContext.Sezioni.Remove(sezione);
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            // Imposta il messaggio di feedback
+            feedbackMessage = "Configurazione salvata con successo!";
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Errore durante il salvataggio della configurazione: {ex.Message}";
+        }
+    }
+
+    public void CreaMateria()
+    {
+        NavigationManager.NavigateTo("/materie/crea");
+    }
+
+    private void NavigaADettaglioMateria(int id)
+    {
+        NavigationManager.NavigateTo($"/materie/dettagli/{id}");
+    }
+
+    private void NavigaAModificaMateria(int id)
+    {
+        NavigationManager.NavigateTo($"/materie/modifica/{id}");
+    }
+
+    private async Task EliminaMateria(int id)
+    {
+        var materia = await DbContext.Materie.FindAsync(id);
+        if (materia != null)
+        {
+            DbContext.Materie.Remove(materia);
+            await DbContext.SaveChangesAsync();
+            Materie = await DbContext.Materie.ToListAsync();
+        }
+    }
+
+    private async Task EliminaSpecializzazione(int id)
+    {
+        var specializzazione = await DbContext.Corsi.FindAsync(id);
+        if (specializzazione != null)
+        {
+            DbContext.Corsi.Remove(specializzazione);
+            await DbContext.SaveChangesAsync();
+            Specializzazioni = await DbContext.Corsi.ToListAsync();
+        }
+    }
+
+    private void CreaSezione()
+    {
+        NavigationManager.NavigateTo("/sezioni/crea");
+    }
+
+    private void CreaAnno()
+    {
+        NavigationManager.NavigateTo("/anni/crea");
+    }
+
+    private async Task EliminaSezione(int id)
+    {
+        var sezione = await DbContext.Sezioni.FindAsync(id);
+        if (sezione != null)
+        {
+            DbContext.Sezioni.Remove(sezione);
+            await DbContext.SaveChangesAsync();
+            Sezioni = await DbContext.Sezioni.ToListAsync();
+        }
+    }
+
+    private async Task EliminaAnno(int id)
+    {
+        var anno = await DbContext.Anni.FindAsync(id);
+        if (anno != null)
+        {
+            DbContext.Anni.Remove(anno);
+            await DbContext.SaveChangesAsync();
+            Anni = await DbContext.Anni.ToListAsync();
+        }
+    }
+
+    public void CreaAnnoFormativo()
+    {
+        NavigationManager.NavigateTo("/anniformativi/crea");
+    }
+
+    public void CreaCollegioDocente()
+    {
+        NavigationManager.NavigateTo("/collegidocente/crea");
+    }
+
+    public void CreaSpecializzazione()
+    {
+        NavigationManager.NavigateTo("/specializzazioni/crea");
+    }
+
+    public void CreaDocente()
+    {
+        NavigationManager.NavigateTo("/docenti/crea");
+    }
+
+    private void NavigaADettaglioAnnoFormativo(int id)
+    {
+        NavigationManager.NavigateTo($"/anniformativi/dettagli/{id}");
+    }
+
+    private void NavigaADettaglioCollegioDocente(int id)
+    {
+        NavigationManager.NavigateTo($"/collegidocente/dettagli/{id}");
+    }
+
+    private void NavigaADettaglioSpecializzazione(int id)
+    {
+        NavigationManager.NavigateTo($"/specializzazioni/dettagli/{id}");
+    }
+
+    private void NavigaAModificaSpecializzazione(int id)
+    {
+        NavigationManager.NavigateTo($"/specializzazioni/modifica/{id}");
+    }
+
+    private void NavigaADettaglioDocente(int id)
+    {
+        NavigationManager.NavigateTo($"/docenti/dettagli/{id}");
+    }
+
+    private void NavigaAModificaDocente(int id)
+    {
+        NavigationManager.NavigateTo($"/docenti/modifica/{id}");
+    }
+
+    private void NavigaAModificaCollegio(int id)
+    {
+        NavigationManager.NavigateTo($"/collegidocente/modifica/{id}");
+    }
+}

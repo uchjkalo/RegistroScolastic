@@ -1,0 +1,296 @@
+﻿@page "/classi/dettagli/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Dettagli Classe @(Classe?.Anno)@(Classe?.Sezione)</PageTitle>
+
+<div class="container mt-4">
+
+    <h2 >Dettagli Classe</h2>
+
+    <!-- caricamento -->
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 200px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Caricamento...</span>
+            </div>
+            <p class="ms-2">Caricamento dettagli classe...</p>
+        </div>
+    }
+    else if (Classe == null)
+    {
+        <!-- errori -->
+        <div class="alert alert-danger" role="alert">
+
+            <h4 class="alert-heading">Errore!</h4>
+            <p>Classe non trovata con ID: @Id</p>
+
+            <hr>
+            <p class="mb-0">Verifica l'ID o torna all'elenco delle classi.</p>
+
+            <button class="btn btn-secondary mt-2" @onclick="GoBack">Torna all'elenco</button>
+
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm p-4 mb-4">
+
+            <div class="card-body">
+
+                <h3 class="card-title text-primary">Informazioni Classe: @Classe.Anno.Nome@Classe.Sezione.Nome</h3>
+                <hr>
+
+                <!-- anno-sezione -->
+                <div class="row mb-3">
+
+                    <div class="col-md-6"><strong>Anno:</strong> @Classe.Anno.Nome</div>
+                    <div class="col-md-6"><strong>Sezione:</strong> @Classe.Sezione.Nome</div>
+
+                </div>
+
+                <!-- corso-collegio -->
+                <div class="row mb-3">
+
+                    <div class="col-md-6"><strong>Corso:</strong> @Classe.Corso?.Nome</div>
+                    <div class="col-md-6"><strong>Collegio Docenti:</strong> @(Classe.CollegioDocenti?.Nome ?? "Nessuno")</div>
+
+                </div>
+
+                <!-- data creaz -->
+                <div class="row">
+
+                    <div class="col-md-6"><strong>Data Creazione:</strong> @Classe.DataCreazione.ToShortDateString()</div>
+
+                </div>
+
+            </div>
+
+            <!-- bottoni -->
+            <div class="card-footer d-flex justify-content-end">
+
+                <button class="btn btn-warning me-2" @onclick="EditClass"><i class="bi bi-pencil"></i> Modifica</button>
+                <button class="btn btn-danger" @onclick="ConfirmDelete"><i class="bi bi-trash"></i> Elimina</button>
+
+            </div>
+
+        </div>
+
+        <!-- studenti -->
+        @if (Classe.Studenti != null && Classe.Studenti.Any())
+        {
+            <div class="card shadow-sm p-4 mb-4">
+
+                <div class="card-body">
+
+                    <h4 >Studenti della Classe (@Classe.Studenti.Count)</h4>
+                    <hr>
+
+                    <ul class="list-group list-group-flush">
+
+                        @foreach (var studente in Classe.Studenti.OrderBy(s => s.Utente?.Profilo?.Cognome))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+
+                                @(studente.Utente?.Profilo?.Cognome) @(studente.Utente?.Profilo?.Nome)
+
+                                <a href="/studenti/dettagli/@studente.UtenteId" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-person"></i> Dettagli
+                                </a>
+
+                            </li>
+                        }
+
+                    </ul>
+
+                </div>
+            </div>
+        }
+        <!-- se non ci sono studenti -->
+        else
+        {
+            <div class="alert alert-info" role="alert">
+                Nessuno studente iscritto a questa classe.
+            </div>
+        }
+
+        <!-- materie -->
+        @if (Classe.MaterieClassi != null && Classe.MaterieClassi.Any())
+        {
+            <div class="card shadow-sm p-4 mb-4">
+
+                <div class="card-body">
+
+                    <h4 >Materie Insegnate (@Classe.MaterieClassi.Count)</h4>
+                    <hr>
+
+                    <ul class="list-group list-group-flush">
+
+                        @foreach (var mc in Classe.MaterieClassi.OrderBy(mc => mc.Materia?.Nome))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+
+                                <div>
+                                    <strong>@mc.Materia?.Nome</strong> (Insegnato da: @mc.Docente?.Utente?.Profilo?.Cognome @mc.Docente?.Utente?.Profilo?.Nome)
+                                </div>
+
+                                <a href="/materie/dettagli/@mc.MateriaId" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-book"></i> Dettagli Materia
+                                </a>
+
+                            </li>
+                        }
+
+                    </ul>
+                </div>
+            </div>
+        }
+        <!-- se non ci sono materie -->
+        else
+        {
+            <div class="alert alert-info" role="alert">
+                Nessuna materia associata a questa classe.
+            </div>
+        }
+
+        <!-- bottone -->
+        <button class="btn btn-secondary mt-3" @onclick="GoBack">Torna all'elenco classi</button>
+    }
+
+	<!-- conferma eliminazione -->
+    @if (showDeleteConfirm)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog">
+
+            <div class="modal-dialog modal-dialog-centered">
+
+                <div class="modal-content">
+
+                    <div class="modal-header bg-danger text-white">
+
+                        <h5>Conferma Eliminazione</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CancelDelete"></button>
+
+                    </div>
+
+                    <div class="modal-body">
+                        Sei sicuro di voler eliminare la classe: <strong>@Classe?.Anno.Nome @Classe?.Sezione.Nome (@Classe?.Corso?.Nome)</strong>?
+                        Questa azione è irreversibile e disassocierà studenti e materie.
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CancelDelete">Annulla</button>
+                        <button type="button" class="btn btn-danger" @onclick="DeleteClass">Conferma Eliminazione</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-backdrop fade show"></div>
+    }
+
+    <!-- errori -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="mt-3 alert @(isError ? "alert-danger" : "alert-success")">
+            @statusMessage
+        </div>
+    }
+</div>
+
+@code {
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private Classe Classe { get; set; } = new Classe();
+    private bool isLoading = true;
+    private bool showDeleteConfirm = false;
+    private string statusMessage = string.Empty;
+    private bool isError;
+
+	<!-- inizializza i dettagli della classe -->
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadClassDetails();
+        isLoading = false;
+    }
+
+    private async Task LoadClassDetails()
+    {
+        Classe = await DbContext.Classi
+
+                                .Include(c => c.AnnoFormativo)
+                                .Include(c => c.Corso)
+                                .Include(c => c.CollegioDocenti)
+
+                                .Include(c => c.Studenti)
+                                    .ThenInclude(s => s.Utente)
+                                        .ThenInclude(u => u.Profilo)
+
+                                .Include(c => c.MaterieClassi)
+                                    .ThenInclude(mc => mc.Materia)
+
+                                .Include(c => c.MaterieClassi)
+                                    .ThenInclude(mc => mc.Docente)
+                                        .ThenInclude(d => d.Utente)
+                                            .ThenInclude(u => u.Profilo)
+
+                                .FirstOrDefaultAsync(c => c.Id == Id)
+
+                                ?? new Classe();
+    }
+
+	<!-- naviga alla pagina di modifica -->
+    private void EditClass()
+    {
+        Navigation.NavigateTo($"/classi/modifica/{Classe.Id}");
+    }
+
+	<!-- conferma eliminazione -->
+    private void ConfirmDelete()
+    {
+        showDeleteConfirm = true;
+        statusMessage = string.Empty;
+    }
+
+	<!-- annulla eliminazione -->
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+    }
+
+    <!-- elimina classe dal db -->
+    private async Task DeleteClass()
+    {
+        showDeleteConfirm = false;
+        try
+        {
+
+            DbContext.Classi.Remove(Classe);
+            await DbContext.SaveChangesAsync();
+            statusMessage = "Classe eliminata con successo!";
+            isError = false;
+            // Reindirizza all'elenco dopo l'eliminazione
+            Navigation.NavigateTo("/classi", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Errore durante l'eliminazione della classe: {ex.Message}";
+            isError = true;
+            Console.WriteLine($"Errore eliminazione classe: {ex.ToString()}");
+        }
+    }
+
+	<!-- torna all'elenco classi -->
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/classi");
+    }
+
+}

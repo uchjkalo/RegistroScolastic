@@ -1,0 +1,158 @@
+﻿@page "/studenti/crea"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Aggiungi Studente</PageTitle>
+
+<div class="container mt-4">
+
+    <h2 class="mb-4 text-primary">Aggiungi Studente</h2>
+
+    <EditForm Model="@StudenteModel" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card shadow-sm p-4">
+
+            <h5 class="mb-3">Dati Utente</h5>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Username</label>
+                    <InputText class="form-control" @bind-Value="StudenteModel.Utente.Username" />
+                    <ValidationMessage For="@(() => StudenteModel.Utente.Username)" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Email</label>
+                    <InputText class="form-control" @bind-Value="StudenteModel.Utente.Email" />
+                    <ValidationMessage For="@(() => StudenteModel.Utente.Email)" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Password</label>
+                    <InputText class="form-control" @bind-Value="Password" type="password" />
+                    <ValidationMessage For="@(() => Password)" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Ruolo</label>
+                    <InputSelect class="form-select" @bind-Value="StudenteModel.Utente.Ruolo">
+                        <option value="@RuoloUtente.Studente">Studente</option>
+                    </InputSelect>
+                </div>
+            </div>
+
+            <h5 class="mb-3 mt-4">Profilo</h5>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Nome</label>
+                    <InputText class="form-control" @bind-Value="StudenteModel.Utente.Profilo.Nome" />
+                    <ValidationMessage For="@(() => StudenteModel.Utente.Profilo.Nome)" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Cognome</label>
+                    <InputText class="form-control" @bind-Value="StudenteModel.Utente.Profilo.Cognome" />
+                    <ValidationMessage For="@(() => StudenteModel.Utente.Profilo.Cognome)" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Codice Fiscale</label>
+                    <InputText class="form-control" @bind-Value="StudenteModel.Utente.Profilo.CodiceFiscale" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Data di Nascita</label>
+                    <InputDate class="form-control" @bind-Value="StudenteModel.Utente.Profilo.DataNascita" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Indirizzo</label>
+                    <InputText class="form-control" @bind-Value="StudenteModel.Utente.Profilo.Indirizzo" />
+                </div>
+                <div class="mb-3 col-md-6">
+                    <label class="form-label">Telefono</label>
+                    <InputText class="form-control" @bind-Value="StudenteModel.Utente.Profilo.Telefono" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Info Aggiuntive</label>
+                <InputTextArea class="form-control" @bind-Value="StudenteModel.Utente.Profilo.InfoAggiuntive" />
+            </div>
+
+            <h5 class="mb-3 mt-4">Classe</h5>
+            <div class="mb-3">
+                <InputSelect class="form-select" @bind-Value="StudenteModel.ClasseId">
+                    <option value="">Seleziona una classe</option>
+                    @foreach (var classe in Classi)
+                    {
+                        <option value="@classe.Id">
+                            @($"{classe.Anno?.Nome} {classe.Sezione?.Nome} {classe.Corso?.Nome}")
+                        </option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => StudenteModel.ClasseId)" />
+            </div>
+
+            <div class="d-flex justify-content-end mt-4">
+                <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+                <button type="submit" class="btn btn-primary">Salva</button>
+            </div>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private Studente StudenteModel { get; set; } = new Studente();  
+
+    private string Password { get; set; } = string.Empty;
+    private List<Classe> Classi { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Inizializzazione difensiva del modello
+        StudenteModel = new Studente
+            {
+                Utente = new Utente
+                {
+                    Profilo = new Profilo(),
+                    Username = string.Empty,
+                    Ruolo = RuoloUtente.Studente
+                }
+            };
+
+        // Carica le classi includendo l'anno per evitare null reference
+        Classi = await DbContext.Classi
+            .Include(c => c.Anno)
+            .Include(c => c.Sezione)
+            .Include(c => c.Corso)
+            .OrderBy(c => c.Anno.Nome)
+            .ThenBy(c => c.Sezione.Nome)
+            .ToListAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        // Hash della password (da sostituire con un vero hash in produzione)
+        StudenteModel.Utente.PasswordHash = Password;
+        StudenteModel.Utente.Ruolo = RuoloUtente.Studente;
+
+        DbContext.Utenti.Add(StudenteModel.Utente);
+        await DbContext.SaveChangesAsync();
+
+        StudenteModel.UtenteId = StudenteModel.Utente.Id;
+
+        DbContext.Studenti.Add(StudenteModel);
+        await DbContext.SaveChangesAsync();
+
+        NavigationManager.NavigateTo("/studenti");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/studenti");
+    }
+}

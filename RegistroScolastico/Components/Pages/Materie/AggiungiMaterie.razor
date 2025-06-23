@@ -1,0 +1,211 @@
+﻿@page "/materie/crea"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Aggiungi Materia</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4 text-primary">Aggiungi Nuova Materia</h2>
+
+    <EditForm Model="@NuovaMateria" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label for="nomeMateria" class="form-label">Nome Materia</label>
+            <InputText id="nomeMateria" class="form-control" @bind-Value="NuovaMateria.Nome" />
+            <ValidationMessage For="@(() => NuovaMateria.Nome)" />
+        </div>
+
+        <!-- Gestione Moduli (solo in memoria finché non si salva la materia) -->
+        <div class="mb-3">
+            <label class="form-label">Moduli associati (opzionale)</label>
+            <div class="mb-2 d-flex align-items-center">
+                <InputText placeholder="Nome nuovo modulo" class="form-control me-2" style="width:200px"
+                           @bind-Value="nuovoModuloNome" />
+                <button type="button" class="btn btn-success btn-sm" @onclick="AggiungiModulo">Aggiungi Modulo</button>
+            </div>
+            <ul class="list-group">
+                @foreach (var modulo in ModuliMateria)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        @if (modulo.Id == moduloInModificaId)
+                        {
+                            <InputText class="form-control me-2" style="width: 200px; display: inline-block;"
+                                       @bind-Value="moduloInModificaNome" />
+                            <button type="button" class="btn btn-primary btn-sm me-1" @onclick="() => SalvaModificaModulo(modulo)">Salva</button>
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="AnnullaModificaModulo">Annulla</button>
+                        }
+                        else
+                        {
+                            <span><b>@modulo.Nome</b></span>
+                            <span>
+                                <button type="button" class="btn btn-warning btn-sm me-1" @onclick="() => IniziaModificaModulo(modulo)">Modifica</button>
+                                <button type="button" class="btn btn-danger btn-sm" @onclick="() => EliminaModulo(modulo)">Elimina</button>
+                            </span>
+                        }
+                    </li>
+                }
+            </ul>
+
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Docenti che insegnano questa materia (in almeno una classe)</label>
+            <div class="text-muted mb-2" style="font-size:0.95em;">
+                Puoi aggiungere i docenti anche in un secondo momento dalla gestione materie.
+            </div>
+            <div class="row">
+                @foreach (var docente in Docenti)
+                {
+                    <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="docente_@docente.UtenteId"
+                                   @bind="docenteSelections[docente.UtenteId]" />
+                            <label class="form-check-label" for="docente_@docente.UtenteId">
+                                @docente.Utente?.Profilo?.Cognome @docente.Utente?.Profilo?.Nome
+                            </label>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end">
+            <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+            <button type="submit" class="btn btn-primary">Aggiungi Materia</button>
+        </div>
+    </EditForm>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="mt-3 alert @(isError ? "alert-danger" : "alert-success")">
+            @statusMessage
+        </div>
+    }
+</div>
+
+@code {
+    private Materia NuovaMateria { get; set; } = new Materia();
+    private List<Docente> Docenti { get; set; } = new();
+    private Dictionary<int, bool> docenteSelections = new();
+    private string statusMessage = string.Empty;
+    private bool isError = false;
+
+    // Moduli (solo in memoria)
+    private List<Modulo> ModuliMateria { get; set; } = new();
+    private string nuovoModuloNome = string.Empty;
+    private int? moduloInModificaId = null;
+    private string moduloInModificaNome = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Docenti = await DbContext.Docenti
+            .Include(d => d.Utente)
+                .ThenInclude(u => u.Profilo)
+            .ToListAsync();
+
+        foreach (var docente in Docenti)
+        {
+            docenteSelections[docente.UtenteId] = false;
+        }
+    }
+
+    private void AggiungiModulo()
+    {
+        var nome = nuovoModuloNome?.Trim();
+        if (!string.IsNullOrWhiteSpace(nome) && !ModuliMateria.Any(m => m.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase)))
+        {
+            ModuliMateria.Add(new Modulo { Nome = nome });
+            nuovoModuloNome = string.Empty;
+        }
+    }
+
+    private void IniziaModificaModulo(Modulo modulo)
+    {
+        moduloInModificaId = modulo.Id;
+        moduloInModificaNome = modulo.Nome;
+    }
+
+    private void AnnullaModificaModulo()
+    {
+        moduloInModificaId = null;
+        moduloInModificaNome = string.Empty;
+    }
+
+    private void SalvaModificaModulo(Modulo modulo)
+    {
+        var nome = moduloInModificaNome?.Trim();
+        if (!string.IsNullOrWhiteSpace(nome) && !ModuliMateria.Any(m => m.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase) && m != modulo))
+        {
+            modulo.Nome = nome;
+            moduloInModificaId = null;
+            moduloInModificaNome = string.Empty;
+        }
+    }
+
+    private void EliminaModulo(Modulo modulo)
+    {
+        ModuliMateria.Remove(modulo);
+        if (moduloInModificaId == modulo.Id)
+            AnnullaModificaModulo();
+    }
+
+    private async Task HandleSubmit()
+    {
+        statusMessage = string.Empty;
+        isError = false;
+
+        try
+        {
+            DbContext.Materie.Add(NuovaMateria);
+            await DbContext.SaveChangesAsync();
+
+            foreach (var modulo in ModuliMateria)
+            {
+                DbContext.Moduli.Add(modulo);
+                await DbContext.SaveChangesAsync();
+
+                DbContext.ModuliMaterie.Add(new ModuloMateria
+                    {
+                        MateriaId = NuovaMateria.Id,
+                        ModuloId = modulo.Id
+                    });
+            }
+            await DbContext.SaveChangesAsync();
+
+            var docentiAssociati = docenteSelections
+                .Where(kv => kv.Value)
+                .Select(kv => new MateriaClasse
+                    {
+                        MateriaId = NuovaMateria.Id,
+                        DocenteId = kv.Key,
+                        Peso = 1
+                    }).ToList();
+
+            if (docentiAssociati.Any())
+            {
+                DbContext.MaterieClassi.AddRange(docentiAssociati);
+                await DbContext.SaveChangesAsync();
+            }
+
+            statusMessage = "Materia e moduli aggiunti con successo!";
+            Navigation.NavigateTo("/gestione", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Errore durante il salvataggio: {ex.Message}";
+            isError = true;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/gestione");
+    }
+}

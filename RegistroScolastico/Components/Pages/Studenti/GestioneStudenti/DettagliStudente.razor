@@ -1,0 +1,116 @@
+﻿@page "/studenti/dettagli/{StudenteId:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Data
+@using RegistroScolastico.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Dettagli Studente</PageTitle>
+
+<div class="container mt-4">
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Caricamento in corso...</div>
+    }
+    else if (studente is null)
+    {
+        <div class="alert alert-danger">Studente non trovato.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm p-4">
+            <h2 class="mb-4 text-primary">Dettagli Studente</h2>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>Username:</strong> @studente.Utente.Username
+                </div>
+                <div class="col-md-6">
+                    <strong>Email:</strong> @studente.Utente.Email
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>Nome:</strong> @studente.Utente.Profilo.Nome
+                </div>
+                <div class="col-md-6">
+                    <strong>Cognome:</strong> @studente.Utente.Profilo.Cognome
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>Codice Fiscale:</strong> @studente.Utente.Profilo.CodiceFiscale
+                </div>
+                <div class="col-md-6">
+                    <strong>Data di Nascita:</strong> @studente.Utente.Profilo.DataNascita.ToShortDateString()
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>Indirizzo:</strong> @studente.Utente.Profilo.Indirizzo
+                </div>
+                <div class="col-md-6">
+                    <strong>Telefono:</strong> @studente.Utente.Profilo.Telefono
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <strong>Info Aggiuntive:</strong> @studente.Utente.Profilo.InfoAggiuntive
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>Classe:</strong>
+                    @if (studente.Classe is not null)
+                    {
+                        @($"{studente.Classe.Anno.Nome} {studente.Classe.Sezione.Nome} - {studente.Classe.Corso.Nome} ({studente.Classe.AnnoFormativo.Nome})")
+                    }
+                    else
+                    {
+                        <span class="text-danger">Non assegnata</span>
+                    }
+                </div>
+            </div>
+            <div class="d-flex justify-content-end mt-4">
+                <button class="btn btn-secondary me-2" @onclick="GoBack">Torna Indietro</button>
+                <button class="btn btn-primary" @onclick="VaiAlleValutazioni">Valutazioni</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int StudenteId { get; set; }
+
+    private Studente? studente;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        studente = await db.Studenti
+            .Include(s => s.Utente)
+                .ThenInclude(u => u.Profilo)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.Anno)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.Sezione)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.Corso)
+            .Include(s => s.Classe)
+                .ThenInclude(c => c.AnnoFormativo)
+            .FirstOrDefaultAsync(s => s.UtenteId == StudenteId);
+
+        isLoading = false;
+    }
+
+    private void VaiAlleValutazioni()
+    {
+        Navigation.NavigateTo($"/studenti/valutazioni/{StudenteId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/studenti");
+    }
+}

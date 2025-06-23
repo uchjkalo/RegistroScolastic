@@ -1,0 +1,188 @@
+﻿@page "/docenti/modifica/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Modifica Docente</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4 text-primary">Modifica Docente</h2>
+
+    @if (isLoading)
+    {
+        <p>Caricamento...</p>
+    }
+    else if (DocenteModel == null)
+    {
+        <div class="alert alert-danger">Docente non trovato.</div>
+        <button class="btn btn-secondary mt-3" @onclick="GoBack">Torna Indietro</button>
+    }
+    else
+    {
+        <EditForm Model="@DocenteModel" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="card shadow-sm p-4">
+                <h5 class="mb-3">Dati Utente</h5>
+                <div class="row">
+                    <div class="mb-3 col-md-6">
+                        <label class="form-label">Email</label>
+                        <InputText class="form-control" @bind-Value="DocenteModel.Utente.Email" />
+                        <ValidationMessage For="@(() => DocenteModel.Utente.Email)" />
+                    </div>
+                    <div class="mb-3 col-md-6">
+                        <label class="form-label">Codice Fiscale</label>
+                        <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.CodiceFiscale" />
+                        <ValidationMessage For="@(() => DocenteModel.Utente.Profilo.CodiceFiscale)" />
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="mb-3 col-md-6">
+                        <label class="form-label">Nome</label>
+                        <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Nome" />
+                        <ValidationMessage For="@(() => DocenteModel.Utente.Profilo.Nome)" />
+                    </div>
+                    <div class="mb-3 col-md-6">
+                        <label class="form-label">Cognome</label>
+                        <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Cognome" />
+                        <ValidationMessage For="@(() => DocenteModel.Utente.Profilo.Cognome)" />
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="mb-3 col-md-6">
+                        <label class="form-label">Data di Nascita</label>
+                        <InputDate class="form-control" @bind-Value="DocenteModel.Utente.Profilo.DataNascita" />
+                        <ValidationMessage For="@(() => DocenteModel.Utente.Profilo.DataNascita)" />
+                    </div>
+                    <div class="mb-3 col-md-6">
+                        <label class="form-label">Telefono</label>
+                        <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Telefono" />
+                        <ValidationMessage For="@(() => DocenteModel.Utente.Profilo.Telefono)" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Residenza</label>
+                    <InputText class="form-control" @bind-Value="DocenteModel.Utente.Profilo.Indirizzo" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Info Aggiuntive</label>
+                    <InputTextArea class="form-control" @bind-Value="DocenteModel.Utente.Profilo.InfoAggiuntive" />
+                </div>
+
+                <h5 class="mb-3 mt-4">Materie Insegnate</h5>
+                <div class="mb-3">
+                    <div class="row">
+                        @foreach (var materia in Materie)
+                        {
+                            <div class="col-md-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           id="materia_@materia.Id"
+                                           @bind="materieSelections[materia.Id]" />
+                                    <label class="form-check-label" for="materia_@materia.Id">
+                                        @materia.Nome
+                                    </label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <small class="text-muted">Puoi lasciare vuoto e assegnare le materie più tardi.</small>
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+                    <button type="submit" class="btn btn-primary">Salva</button>
+                </div>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Docente? DocenteModel { get; set; }
+    private bool isLoading = true;
+    private List<Materia> Materie { get; set; } = new();
+    private Dictionary<int, bool> materieSelections = new();
+    private bool _disposed = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Materie = await DbContext.Materie.OrderBy(m => m.Nome).ToListAsync();
+
+            DocenteModel = await DbContext.Docenti
+                .Include(d => d.Utente)
+                    .ThenInclude(u => u.Profilo)
+                .Include(d => d.MaterieInsegnate)
+                .ThenInclude(mc => mc.Materia)
+                .FirstOrDefaultAsync(d => d.UtenteId == Id);
+
+            foreach (var materia in Materie)
+            {
+                materieSelections[materia.Id] = DocenteModel?.MaterieInsegnate?.Any(mc => mc.MateriaId == materia.Id) ?? false;
+            }
+        }
+        finally
+        {
+            if (!_disposed)
+                isLoading = false;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (DocenteModel != null && !_disposed)
+        {
+            // Aggiorna dati anagrafici
+            DbContext.Entry(DocenteModel.Utente.Profilo).State = EntityState.Modified;
+            DbContext.Entry(DocenteModel.Utente).State = EntityState.Modified;
+            DbContext.Entry(DocenteModel).State = EntityState.Modified;
+
+            // Aggiorna materie insegnate
+            var materieSelezionate = materieSelections.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+
+            // Rimuovi tutte le associazioni esistenti (solo quelle senza classe)
+            var esistenti = await DbContext.MaterieClassi
+                .Where(mc => mc.DocenteId == DocenteModel.UtenteId && mc.ClasseId == null) // Cambiato da 0 a null
+                .ToListAsync();
+            DbContext.MaterieClassi.RemoveRange(esistenti);
+
+            // Aggiungi nuove associazioni
+            foreach (var materiaId in materieSelezionate)
+            {
+                DbContext.MaterieClassi.Add(new MateriaClasse
+                    {
+                        MateriaId = materiaId,
+                        DocenteId = DocenteModel.UtenteId,
+                        ClasseId = null, // <-- Cambiato da 0 a null
+                        Peso = 1
+                    });
+            }
+
+
+            await DbContext.SaveChangesAsync();
+
+            // Naviga e termina la funzione subito dopo
+            NavigationManager.NavigateTo("/gestione");
+            return;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+    }
+}

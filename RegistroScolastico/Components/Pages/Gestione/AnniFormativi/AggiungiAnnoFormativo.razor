@@ -1,0 +1,75 @@
+﻿@page "/anniformativi/crea"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Aggiungi Anno Formativo</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4 text-primary">Aggiungi Anno Formativo</h2>
+
+    <EditForm Model="@AnnoFormativo" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card shadow-sm p-4">
+            <div class="mb-3">
+                <label for="nome" class="form-label">Anno Formativo</label>
+                <InputSelect id="nome" class="form-select" @bind-Value="AnnoFormativo.Nome">
+                    <option value="">Seleziona un anno formativo</option>
+                    @foreach (var anno in AnniFormativiDisponibili)
+                    {
+                        <option value="@anno">@anno</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => AnnoFormativo.Nome)" />
+            </div>
+
+
+            <div class="d-flex justify-content-end mt-4">
+                <button type="button" class="btn btn-secondary me-2" @onclick="GoBack">Annulla</button>
+                <button type="submit" class="btn btn-primary">Salva</button>
+            </div>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private AnnoFormativo AnnoFormativo { get; set; } = new AnnoFormativo();
+    private List<string> AnniFormativiDisponibili { get; set; } = new List<string>();
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        // Genera gli anni formativi disponibili
+        AnniFormativiDisponibili = GenerateAnniFormativi();
+    }
+
+    private List<string> GenerateAnniFormativi()
+    {
+        var anni = new List<string>();
+        int startYear = 2020; // Inizia dal 2020
+        int endYear = 2069;   // Fino al 2069
+
+        for (int year = startYear; year <= endYear; year++)
+        {
+            anni.Add($"{year}/{year + 1}");
+        }
+
+        return anni;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        DbContext.AnniFormativi.Add(AnnoFormativo);
+        await DbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo("/gestione");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/gestione");
+    }
+}

@@ -1,0 +1,238 @@
+﻿@page "/classi"
+@using Microsoft.EntityFrameworkCore
+@using RegistroScolastico.Models
+@using RegistroScolastico.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Elenco Classi</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary">Elenco Classi</h2>
+        <div class="d-flex align-items-center">
+            <div class="me-3">
+                <select class="form-select" @bind="AnnoFormativoSelezionato" @bind:event="onchange">
+                    <option value="0">Tutti gli anni</option>
+                    @foreach (var anno in AnniFormativi)
+                    {
+                        <option value="@anno.Id">@anno.Nome</option>
+                    }
+                </select>
+            </div>
+            <button class="btn btn-success" @onclick="CreaClasse">
+                <i class="bi bi-plus-circle"></i> Nuova Classe
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 200px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Caricamento...</span>
+            </div>
+            <p class="ms-2">Caricamento classi...</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" placeholder="Cerca classe..."
+                           @bind="FiltroTestuale" @bind:event="oninput" />
+                </div>
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th class="text-center cursor-pointer @GetSortHeaderClass(nameof(Classe.Anno))" @onclick="() => OrdinaPer(nameof(Classe.Anno))">
+                                Anno @RenderSortIcon(nameof(Classe.Anno))
+                            </th>
+                            <th class="text-center cursor-pointer @GetSortHeaderClass(nameof(Classe.Sezione))" @onclick="() => OrdinaPer(nameof(Classe.Sezione))">
+                                Sezione @RenderSortIcon(nameof(Classe.Sezione))
+                            </th>
+                            <th class="cursor-pointer @GetSortHeaderClass(CorsoNome)" @onclick="() => OrdinaPer(CorsoNome)">
+                                Specializzazione @RenderSortIcon(CorsoNome)
+                            </th>
+                            <th class="cursor-pointer @GetSortHeaderClass(AnnoFormativoNome)" @onclick="() => OrdinaPer(AnnoFormativoNome)">
+                                Anno Formativo @RenderSortIcon(AnnoFormativoNome)
+                            </th>
+                            <th>Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var classe in ClassiFiltrate)
+                        {
+                            <tr>
+                                <td class="text-center">@classe.Anno?.Nome</td>
+                                <td class="text-center">@classe.Sezione?.Nome</td>
+                                <td>@classe.Corso?.Nome</td>
+                                <td>@classe.AnnoFormativo?.Nome</td>
+                                <td>
+                                    <button class="btn btn-info btn-sm me-2" @onclick="() => NavigaADettaglioClasse(classe.Id)">Dettagli</button>
+                                    <button class="btn btn-warning btn-sm" @onclick="() => NavigaAModificaClasse(classe.Id)">Modifica</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <div class="mt-2">
+                    Mostrando @ClassiFiltrate.Count di @Classi.Count classi
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const string CorsoNome = "Corso.Nome";
+    private const string AnnoFormativoNome = "AnnoFormativo.Nome";
+    private List<Classe> Classi { get; set; } = new List<Classe>();
+    private List<Classe> ClassiFiltrate { get; set; } = new List<Classe>();
+    private List<AnnoFormativo> AnniFormativi { get; set; } = new List<AnnoFormativo>();
+    private int _annoFormativoSelezionato = 0;
+    private string _filtroTestuale = string.Empty;
+    private bool isLoading = true;
+    private string _campoOrdinamento = nameof(Classe.Anno);
+    private bool _ordinamentoCrescente = true;
+
+    private int AnnoFormativoSelezionato
+    {
+        get => _annoFormativoSelezionato;
+        set
+        {
+            if (_annoFormativoSelezionato != value)
+            {
+                _annoFormativoSelezionato = value;
+                FiltraClassi();
+            }
+        }
+    }
+
+    private string FiltroTestuale
+    {
+        get => _filtroTestuale;
+        set
+        {
+            if (_filtroTestuale != value)
+            {
+                _filtroTestuale = value;
+                FiltraClassi();
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        isLoading = false;
+    }
+
+    private async Task LoadData()
+    {
+        Classi = await DbContext.Classi
+            .Include(c => c.AnnoFormativo)
+            .Include(c => c.Corso)
+            .Include(c => c.Anno)      
+            .Include(c => c.Sezione)  
+            .ToListAsync();
+
+        AnniFormativi = await DbContext.AnniFormativi.ToListAsync();
+        ClassiFiltrate = Classi;
+        OrdinaClassi();
+    }
+
+    private void FiltraClassi()
+    {
+        var query = Classi.AsQueryable();
+
+        if (AnnoFormativoSelezionato != 0)
+        {
+            query = query.Where(c => c.AnnoFormativoId == AnnoFormativoSelezionato);
+        }
+
+        if (!string.IsNullOrEmpty(FiltroTestuale))
+        {
+            // Usa .Contains(string, StringComparison) solo su stringhe
+            query = query.Where(c =>
+                (!string.IsNullOrEmpty(c.Anno.Nome) && c.Anno.Nome.Contains(FiltroTestuale, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(c.Sezione.Nome) && c.Sezione.Nome.Contains(FiltroTestuale, StringComparison.OrdinalIgnoreCase)) ||
+                (c.Corso != null && !string.IsNullOrEmpty(c.Corso.Nome) && c.Corso.Nome.Contains(FiltroTestuale, StringComparison.OrdinalIgnoreCase)) ||
+                (c.AnnoFormativo != null && !string.IsNullOrEmpty(c.AnnoFormativo.Nome) && c.AnnoFormativo.Nome.Contains(FiltroTestuale, StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        ClassiFiltrate = query.ToList();
+        OrdinaClassi();
+    }
+
+    private void OrdinaPer(string campo)
+    {
+        if (_campoOrdinamento == campo)
+        {
+            _ordinamentoCrescente = !_ordinamentoCrescente;
+        }
+        else
+        {
+            _campoOrdinamento = campo;
+            _ordinamentoCrescente = true;
+        }
+        OrdinaClassi();
+    }
+
+    private void OrdinaClassi()
+    {
+        switch (_campoOrdinamento)
+        {
+            case nameof(Classe.Anno):
+                ClassiFiltrate = _ordinamentoCrescente
+                    ? ClassiFiltrate.OrderBy(c => c.Anno?.Nome).ToList()
+                    : ClassiFiltrate.OrderByDescending(c => c.Anno?.Nome).ToList();
+                break;
+            case nameof(Classe.Sezione):
+                ClassiFiltrate = _ordinamentoCrescente
+                    ? ClassiFiltrate.OrderBy(c => c.Sezione?.Nome).ToList()
+                    : ClassiFiltrate.OrderByDescending(c => c.Sezione?.Nome).ToList();
+                break;
+            case CorsoNome:
+                ClassiFiltrate = _ordinamentoCrescente
+                    ? ClassiFiltrate.OrderBy(c => c.Corso?.Nome).ToList()
+                    : ClassiFiltrate.OrderByDescending(c => c.Corso?.Nome).ToList();
+                break;
+            case AnnoFormativoNome:
+                ClassiFiltrate = _ordinamentoCrescente
+                    ? ClassiFiltrate.OrderBy(c => c.AnnoFormativo?.Nome).ToList()
+                    : ClassiFiltrate.OrderByDescending(c => c.AnnoFormativo?.Nome).ToList();
+                break;
+        }
+    }
+
+    private string GetSortHeaderClass(string campo)
+    {
+        return _campoOrdinamento == campo ? "bg-light" : "";
+    }
+
+    private MarkupString RenderSortIcon(string campo)
+    {
+        if (_campoOrdinamento != campo) return (MarkupString)"";
+        return _ordinamentoCrescente
+            ? (MarkupString)"<i class='bi bi-arrow-up-short'></i>"
+            : (MarkupString)"<i class='bi bi-arrow-down-short'></i>";
+    }
+
+    private void CreaClasse()
+    {
+        Navigation.NavigateTo("/classi/crea");
+    }
+
+    private void NavigaADettaglioClasse(int id)
+    {
+        Navigation.NavigateTo($"/classi/dettagli/{id}");
+    }
+
+    private void NavigaAModificaClasse(int id)
+    {
+        Navigation.NavigateTo($"/classi/modifica/{id}");
+    }
+}
